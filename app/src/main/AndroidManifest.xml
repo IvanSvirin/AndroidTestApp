@@ -17,6 +17,7 @@
 
         <service android:name=".api.WebService"
             android:process=":background"/>
+        <service android:name=".api.NewWebService" />
     </application>
 
 </manifest>

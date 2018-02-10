@@ -26,36 +26,28 @@ import android.view.ViewGroup;
 import java.util.Set;
 
 import mera.com.testapp.R;
-import mera.com.testapp.api.WebService;
+import mera.com.testapp.api.NewWebService;
 import mera.com.testapp.api.db.DatabaseHelper;
 import mera.com.testapp.api.models.State;
 
 public class ListFragment extends Fragment implements SwipeRefreshLayout.OnRefreshListener {
     private static final String TAG = ListFragment.class.getSimpleName();
-
-    private Context mContext;
     private static final String[] COUNTRIES = new String[]{"All", "Germany", "United States"};
-
     private SwipeRefreshLayout mSwipeRefreshLayout;
     private ListAdapter mAdapter;
-
-    private WebService service;
+//    private WebService service;
     private boolean is_service_bound;
-
     private StatesReceiver mStatesReceiver;
-
     private String mCountryFilter;
-
     private int mChosenFilterPosition;
+    private Intent intentStartService;
 
-    public ListFragment(Context context) {
-        mContext = context;
-    }
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(true);
+        intentStartService = new Intent(getActivity(), NewWebService.class);
     }
 
     @Nullable
@@ -68,7 +60,7 @@ public class ListFragment extends Fragment implements SwipeRefreshLayout.OnRefre
 
         RecyclerView recyclerView = (RecyclerView) v.findViewById(R.id.list);
 
-        LinearLayoutManager layoutManager = new LinearLayoutManager(mContext);
+        LinearLayoutManager layoutManager = new LinearLayoutManager(getContext());
         recyclerView.setLayoutManager(layoutManager);
 
         mAdapter = new ListAdapter();
@@ -76,8 +68,8 @@ public class ListFragment extends Fragment implements SwipeRefreshLayout.OnRefre
 
         registerReceivers();
 
-        mContext.bindService(WebService.createServiceIntent(mContext), mConnection, Context.BIND_AUTO_CREATE);
-
+//        getContext().bindService(WebService.createServiceIntent(getContext()), mConnection, Context.BIND_AUTO_CREATE);
+        startWebService();
         return v;
     }
 
@@ -89,7 +81,7 @@ public class ListFragment extends Fragment implements SwipeRefreshLayout.OnRefre
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int itemId = item.getItemId();
-        if(itemId == R.id.list_filter) {
+        if (itemId == R.id.list_filter) {
             showFilterDialog();
             return true;
         }
@@ -101,10 +93,10 @@ public class ListFragment extends Fragment implements SwipeRefreshLayout.OnRefre
         super.onDestroyView();
         unregisterReceivers();
         try {
-            mContext.unbindService(mConnection);
+//            mContext.unbindService(mConnection);
 
             is_service_bound = false;
-            service = null;
+//            service = null;
         } catch (Exception e) {
             Log.e(TAG, "An error occurred during the service stop.", e);
         }
@@ -113,14 +105,14 @@ public class ListFragment extends Fragment implements SwipeRefreshLayout.OnRefre
     private void registerReceivers() {
         if (mStatesReceiver == null) {
             mStatesReceiver = new StatesReceiver();
-            mContext.registerReceiver(mStatesReceiver, new IntentFilter(WebService.STATES_UPDATED_ACTION));
+            getContext().registerReceiver(mStatesReceiver, new IntentFilter(NewWebService.STATES_UPDATED_ACTION));
         }
     }
 
     private void unregisterReceivers() {
         if (mStatesReceiver != null) {
             try {
-                mContext.unregisterReceiver(mStatesReceiver);
+                getContext().unregisterReceiver(mStatesReceiver);
             } catch (Exception e) {
                 Log.e(TAG, "Can unregister StatesReceiver", e);
             }
@@ -132,7 +124,7 @@ public class ListFragment extends Fragment implements SwipeRefreshLayout.OnRefre
         @Override
         public void onReceive(Context context, Intent intent) {
             Log.d(TAG, "StatesReceiver: onReceive action: " + intent.getAction());
-            Set<State> localStates = service.getStatesLocal(mContext, mCountryFilter, DatabaseHelper.SortType.NONE);
+            Set<State> localStates = DatabaseHelper.getInstance(context).query(mCountryFilter, DatabaseHelper.SortType.NONE);
             if (localStates != null && !localStates.isEmpty()) {
                 mAdapter.setData(localStates);
                 MainActivity activity = (MainActivity) getActivity();
@@ -144,10 +136,10 @@ public class ListFragment extends Fragment implements SwipeRefreshLayout.OnRefre
 
     @Override
     public void onRefresh() {
-        if (isServiceAvailable()) {
+//        if (isServiceAvailable()) {
             mSwipeRefreshLayout.setRefreshing(true);
-            service.requestStates(mContext);
-        }
+            startWebService();
+//        }
     }
 
     private void showFilterDialog() {
@@ -156,47 +148,51 @@ public class ListFragment extends Fragment implements SwipeRefreshLayout.OnRefre
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 mChosenFilterPosition = which;
-                if(which == 0) {
+                if (which == 0) {
                     mCountryFilter = "";
                 } else {
                     mCountryFilter = COUNTRIES[which];
                 }
-                getContext().sendBroadcast(new Intent(WebService.STATES_UPDATED_ACTION));
+                getContext().sendBroadcast(new Intent(NewWebService.STATES_UPDATED_ACTION));
                 dialog.dismiss();
             }
         });
         builder.create().show();
     }
 
-    private boolean isServiceAvailable() {
-        return service != null && is_service_bound;
+//    private boolean isServiceAvailable() {
+//        return service != null && is_service_bound;
+//    }
+//
+//    private ServiceConnection mConnection = new ServiceConnection() {
+//
+//        @Override
+//        public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
+//            is_service_bound = true;
+//
+//            WebService.LocalBinder localBinder = (WebService.LocalBinder) iBinder;
+//            service = localBinder.getService();
+//            Set<State> localStates = service.getStatesLocal(getContext(), mCountryFilter, DatabaseHelper.SortType.NONE);
+//            if (localStates != null && !localStates.isEmpty()) {
+//                mAdapter.setData(localStates);
+//                MainActivity activity = (MainActivity) getActivity();
+//                activity.updateActionBar(Integer.toString(localStates.size()));
+//            }
+//
+//            if (isServiceAvailable()) {
+//                mSwipeRefreshLayout.setRefreshing(true);
+//                service.requestStates(mContext);
+//            }
+//        }
+//
+//        @Override
+//        public void onServiceDisconnected(ComponentName componentName) {
+//            is_service_bound = false;
+//            service = null;
+//        }
+//    };
+
+    private void startWebService() {
+        getActivity().startService(intentStartService);
     }
-
-    private ServiceConnection mConnection = new ServiceConnection() {
-
-        @Override
-        public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
-            is_service_bound = true;
-
-            WebService.LocalBinder localBinder = (WebService.LocalBinder) iBinder;
-            service = localBinder.getService();
-            Set<State> localStates = service.getStatesLocal(mContext, mCountryFilter, DatabaseHelper.SortType.NONE);
-            if (localStates != null && !localStates.isEmpty()) {
-                mAdapter.setData(localStates);
-                MainActivity activity = (MainActivity) getActivity();
-                activity.updateActionBar(Integer.toString(localStates.size()));
-            }
-
-            if (isServiceAvailable()) {
-                mSwipeRefreshLayout.setRefreshing(true);
-                service.requestStates(mContext);
-            }
-         }
-
-        @Override
-        public void onServiceDisconnected(ComponentName componentName) {
-            is_service_bound = false;
-            service = null;
-        }
-    };
 }
